@@ -11,6 +11,11 @@ export const config = {
   etl: {
     batchSize: parseInt(process.env.BATCH_SIZE || '1000', 10),
   },
+  transformer: {
+    chunkSize: parseInt(process.env.TRANSFORMER_CHUNK_SIZE || '5000', 10),
+    batchSize: parseInt(process.env.TRANSFORMER_BATCH_SIZE || process.env.BATCH_SIZE || '500', 10),
+    concurrency: parseInt(process.env.TRANSFORMER_CONCURRENCY || '4', 10),
+  },
   program: {
     id: process.env.PROGRAM_ID || 'oreV3EG1i9BEgiAJ8b177Z2S2rMarzak4NMv1kULvWv',
   },

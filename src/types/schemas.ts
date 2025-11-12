@@ -167,6 +167,18 @@ export interface ETLState {
   errorMessage?: string;
 }
 
+export interface TransformChunkState {
+  _id?: ObjectId;
+  chunkId: string;
+  startSlot: number;
+  endSlot: number;
+  status: 'pending' | 'running' | 'completed' | 'error';
+  updatedAt: Date;
+  lastProcessedSlot?: number;
+  lastProcessedSignature?: string;
+  errorMessage?: string;
+}
+
 // Collection names
 export const COLLECTIONS = {
   // Source
@@ -183,5 +195,6 @@ export const COLLECTIONS = {
   BURY: 'bury',
   RESETS: 'resets',
   ETL_STATE: 'etl_state',
+  TRANSFORM_CHUNKS: 'transform_chunks',
 } as const;
 

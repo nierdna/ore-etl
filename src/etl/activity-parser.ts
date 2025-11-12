@@ -1,4 +1,6 @@
 import { RawTransaction, DeployActivity, CheckpointActivity, ClaimSOLActivity, ClaimOREActivity, ClaimYieldActivity, DepositActivity, WithdrawActivity, BuryActivity } from '../types/schemas';
+import { MongoManager } from '../database/mongo-manager';
+import { logger } from '../utils/logger';
 import { DeployETL } from './deploy-etl';
 import { CheckpointETL } from './checkpoint-etl';
 import { ClaimSOLETL } from './claim-sol-etl';
@@ -61,7 +63,113 @@ const PARSERS: ParserEntry<any>[] = [
   { activityType: 'deploy', parse: tx => deployParser.processTransaction(tx) },
 ];
 
-export async function parseRawTransaction(tx: RawTransaction): Promise<ParsedActivity[]> {
+export type ActivityParserOptions = {
+  mongoManager?: MongoManager;
+};
+
+async function persistParsedActivities(mongoManager: MongoManager, activities: ParsedActivity[]): Promise<void> {
+  if (activities.length === 0) {
+    return;
+  }
+
+  try {
+    const deploys = activities.filter(
+      (activity): activity is Extract<ParsedActivity, { activityType: 'deploy' }> =>
+        activity.activityType === 'deploy'
+    );
+    if (deploys.length > 0) {
+      await mongoManager.saveBatch(
+        mongoManager.getDeploysCollection(),
+        deploys.map(({ activityType, ...rest }) => rest)
+      );
+    }
+
+    const checkpoints = activities.filter(
+      (activity): activity is Extract<ParsedActivity, { activityType: 'checkpoint' }> =>
+        activity.activityType === 'checkpoint'
+    );
+    if (checkpoints.length > 0) {
+      await mongoManager.saveBatch(
+        mongoManager.getCheckpointsCollection(),
+        checkpoints.map(({ activityType, ...rest }) => rest)
+      );
+    }
+
+    const claimSol = activities.filter(
+      (activity): activity is Extract<ParsedActivity, { activityType: 'claim_sol' }> =>
+        activity.activityType === 'claim_sol'
+    );
+    if (claimSol.length > 0) {
+      await mongoManager.saveBatch(
+        mongoManager.getClaimSOLCollection(),
+        claimSol.map(({ activityType, ...rest }) => rest)
+      );
+    }
+
+    const claimOre = activities.filter(
+      (activity): activity is Extract<ParsedActivity, { activityType: 'claim_ore' }> =>
+        activity.activityType === 'claim_ore'
+    );
+    if (claimOre.length > 0) {
+      await mongoManager.saveBatch(
+        mongoManager.getClaimORECollection(),
+        claimOre.map(({ activityType, ...rest }) => rest)
+      );
+    }
+
+    const claimYield = activities.filter(
+      (activity): activity is Extract<ParsedActivity, { activityType: 'claim_yield' }> =>
+        activity.activityType === 'claim_yield'
+    );
+    if (claimYield.length > 0) {
+      await mongoManager.saveBatch(
+        mongoManager.getClaimYieldsCollection(),
+        claimYield.map(({ activityType, ...rest }) => rest)
+      );
+    }
+
+    const deposits = activities.filter(
+      (activity): activity is Extract<ParsedActivity, { activityType: 'deposit' }> =>
+        activity.activityType === 'deposit'
+    );
+    if (deposits.length > 0) {
+      await mongoManager.saveBatch(
+        mongoManager.getDepositsCollection(),
+        deposits.map(({ activityType, ...rest }) => rest)
+      );
+    }
+
+    const withdraws = activities.filter(
+      (activity): activity is Extract<ParsedActivity, { activityType: 'withdraw' }> =>
+        activity.activityType === 'withdraw'
+    );
+    if (withdraws.length > 0) {
+      await mongoManager.saveBatch(
+        mongoManager.getWithdrawsCollection(),
+        withdraws.map(({ activityType, ...rest }) => rest)
+      );
+    }
+
+    const buries = activities.filter(
+      (activity): activity is Extract<ParsedActivity, { activityType: 'bury' }> =>
+        activity.activityType === 'bury'
+    );
+    if (buries.length > 0) {
+      await mongoManager.saveBatch(
+        mongoManager.getBuryCollection(),
+        buries.map(({ activityType, ...rest }) => rest)
+      );
+    }
+  } catch (error) {
+    logger.error('Failed to persist parsed activities', error);
+    throw error;
+  }
+}
+
+export async function parseRawTransaction(
+  tx: RawTransaction,
+  options: ActivityParserOptions = {}
+): Promise<ParsedActivity[]> {
   const results: ParsedActivity[] = [];
 
   for (const parser of PARSERS) {
@@ -71,13 +179,20 @@ export async function parseRawTransaction(tx: RawTransaction): Promise<ParsedAct
     }
   }
 
+  if (results.length > 0 && options.mongoManager) {
+    await persistParsedActivities(options.mongoManager, results);
+  }
+
   return results;
 }
 
-export async function parseTransactionsBatch(transactions: RawTransaction[]): Promise<ParsedActivity[]> {
+export async function parseTransactionsBatch(
+  transactions: RawTransaction[],
+  options: ActivityParserOptions = {}
+): Promise<ParsedActivity[]> {
   const results: ParsedActivity[] = [];
   for (const tx of transactions) {
-    const parsed = await parseRawTransaction(tx);
+    const parsed = await parseRawTransaction(tx, options);
     if (parsed.length > 0) {
       results.push(...parsed);
     }

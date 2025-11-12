@@ -13,6 +13,7 @@ import {
   BuryActivity,
   ResetActivity,
   ETLState,
+  TransformChunkState,
   COLLECTIONS,
 } from '../types/schemas';
 
@@ -108,6 +109,11 @@ export class MongoManager {
       const etlStateCol = this.targetDb.collection<ETLState>(COLLECTIONS.ETL_STATE);
       await etlStateCol.createIndex({ type: 1 }, { unique: true });
 
+      // Transform chunk state indexes
+      const transformChunksCol = this.targetDb.collection<TransformChunkState>(COLLECTIONS.TRANSFORM_CHUNKS);
+      await transformChunksCol.createIndex({ chunkId: 1 }, { unique: true });
+      await transformChunksCol.createIndex({ status: 1 });
+
       logger.info('Created indexes for all collections');
     } catch (error) {
       logger.error('Error creating indexes', error);
@@ -172,6 +178,11 @@ export class MongoManager {
   getETLStateCollection(): Collection<ETLState> {
     if (!this.targetDb) throw new Error('Target database not connected');
     return this.targetDb.collection<ETLState>(COLLECTIONS.ETL_STATE);
+  }
+
+  getTransformChunksCollection(): Collection<TransformChunkState> {
+    if (!this.targetDb) throw new Error('Target database not connected');
+    return this.targetDb.collection<TransformChunkState>(COLLECTIONS.TRANSFORM_CHUNKS);
   }
 
   // ========== ETL State Management ==========

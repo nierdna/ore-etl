@@ -21,6 +21,8 @@
     "etl:claim-yield": "ts-node src/etl/run-claim-yield.ts",
     "etl:bury": "ts-node src/etl/run-bury.ts",
     "etl:all": "ts-node src/etl/run-all.ts",
+    "etl:transformer": "ts-node src/etl/run-transformer.ts",
+    "etl:transformer:sample": "ts-node src/etl/run-transformer-sample.ts --limit 100",
     "query": "ts-node src/queries/sample-queries.ts",
     "analytics": "ts-node src/analytics/examples.ts"
   },
