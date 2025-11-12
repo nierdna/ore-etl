@@ -177,7 +177,7 @@ export class TransactionTransformer {
   private async getNextChunks(limit: number): Promise<TransformChunkState[]> {
     const chunksCollection = this.mongoManager.getTransformChunksCollection();
     return await chunksCollection
-      .find({ status: { $in: ['pending', 'error'] } })
+      .find({ status: { $in: ['pending', 'error', 'running'] } })
       .sort({ startSlot: 1 })
       .limit(limit)
       .toArray();
@@ -215,6 +215,25 @@ export class TransactionTransformer {
       };
     }
 
+    // Kiểm tra nếu chunk đã xử lý xong hết slot range
+    if (chunk.lastProcessedSlot && chunk.lastProcessedSlot >= chunk.endSlot) {
+      logger.info(`[processChunk] Chunk ${chunk.chunkId} already processed all slots (lastProcessedSlot=${chunk.lastProcessedSlot} >= endSlot=${chunk.endSlot}), marking as completed`);
+      await chunksCollection.updateOne(
+        { chunkId: chunk.chunkId },
+        {
+          $set: {
+            status: 'completed',
+            updatedAt: new Date(),
+          },
+        }
+      );
+      return {
+        processedTransactions: 0,
+        processedActivities: 0,
+        durationMs: 0,
+      };
+    }
+
     const startedAt = performance.now();
     const CHUNK_LOAD_LIMIT = 100;
 
@@ -223,9 +242,17 @@ export class TransactionTransformer {
       
       let totalProcessedTransactions = 0;
       let totalProcessedActivities = 0;
-      let lastProcessedSlot = chunk.startSlot;
-      let lastProcessedSignature = '';
-      let currentSlot = chunk.startSlot;
+      let lastProcessedSlot = chunk.lastProcessedSlot ?? chunk.startSlot - 1;
+      let lastProcessedSignature = chunk.lastProcessedSignature ?? '';
+
+      // Resume từ lastProcessedSlot nếu chunk đã chạy một phần
+      let currentSlot = chunk.lastProcessedSlot
+        ? chunk.lastProcessedSlot + 1  // Tiếp tục từ slot kế tiếp
+        : chunk.startSlot;              // Bắt đầu từ đầu
+
+      if (chunk.lastProcessedSlot) {
+        logger.info(`[processChunk] Resuming chunk ${chunk.chunkId} from slot ${currentSlot} (was at ${chunk.lastProcessedSlot})`);
+      }
 
       logger.info(`[processChunk] Starting loop for chunk ${chunk.chunkId}, currentSlot=${currentSlot}, endSlot=${chunk.endSlot}`);
 
