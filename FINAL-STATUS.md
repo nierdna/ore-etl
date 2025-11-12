@@ -1,299 +1,162 @@
 # 🎉 ORE ETL Pipeline - Final Status
 
-> Complete test infrastructure và production readiness report
+> Test infrastructure, ETL readiness, and data coverage summary
 
 ---
 
-## ✅ **PRODUCTION READY!**
+## ✅ **Production Readiness Snapshot**
 
-All systems tested and verified with real MongoDB data.
+- 112/112 Jest tests passing (unit + E2E + activity router)
+- Parser coverage >90%, ETL happy-paths covered via integration tests
+- Deploy / Checkpoint / Claim (SOL‑ORE‑Yield) / Staking (deposit‑withdraw) / Bury pipelines triển khai đầy đủ
+- New activity router (`parseRawTransaction`) giúp nhận diện hành động trực tiếp từ RawTransaction
+- Squares mask, reward totals, staking balances, bury swap/share/burn đều được kiểm chứng
 
 ---
 
-## 📊 **Test Results**
-
-### **57/57 Tests Passing (100%)**
+## 📊 **Test Results (npm test)**
 
 ```
-Test Suites: 4 passed, 4 total
-Tests:       57 passed, 57 total
-Time:        1.9s
-Coverage:    44% overall, 85% parsers
+Test Suites: 11 passed, 11 total
+Tests:       112 passed, 112 total
+Time:        ~4.3 s
+Coverage:    42% overall, 90.8% parsers
 ```
 
-### **Test Breakdown:**
+### Breakdown by suite
+| Suite | Tests | Coverage note |
+|-------|-------|----------------|
+| `log-parser.test.ts` | 35 | 96% statements / 94% branches |
+| `instruction-parser.test.ts` | 12 | 83% statements / 83% branches |
+| `activity-parser.test.ts` | 9 | Router validation |
+| ETL suites (deploy/checkpoint/claim*/staking/bury) | 56 | Integration coverage |
 
-| Suite | Tests | Status | Coverage |
-|-------|-------|--------|----------|
-| **log-parser.test.ts** | 26 | ✅ All pass | 96% |
-| **instruction-parser.test.ts** | 8 | ✅ All pass | 56% |
-| **deploy-etl.test.ts** (E2E) | 17 | ✅ All pass | 43% |
-| **checkpoint-etl.test.ts** (E2E) | 6 | ✅ All pass | _TBD_ |
+> Coverage (npm run test:coverage): ETL statements ~30‑43%, branch coverage thấp hơn do defensive paths chưa mock – acceptable vì E2E xác thực luồng chính.
 
 ---
 
-## ✅ **E2E Verification - Raw TX → DeployActivity**
+## 🧪 **What the Tests Verify**
 
-### **Complete Flow Tested:**
+### Deploy / Checkpoint
+- Squares mask decoded từ instruction (squares[] khác null)
+- Automation detection & authority fallback
+- Reward totals (base / split / top / motherlode / refund) merge chính xác
 
-```
-Raw Transaction (MongoDB)
-    ↓
-LogParser.parseAll(logs)
-    → Extract: roundId, amountSOL, numSquares
-    ↓
-extractPubkey(accountKeys[0])
-    → Extract: authority address
-    ↓
-DeployETL.processTransaction()
-    → Combine all data
-    ↓
-DeployActivity Object
-    ✅ signature: "3Ebnk..."
-    ✅ authority: "ANTXqyWP..."  (NOT "unknown"!)
-    ✅ roundId: 48888
-    ✅ amountSOL: 0.00001
-    ✅ numSquares: 11
-    ✅ slot: 379189525
-    ✅ blockTime: 1762789129
-    ✅ isAutomation: false
-    ✅ success: true
-    ✅ squares: [0,1,3,7,9,11,13,15,17,19,21]
-```
+### Claim Pipelines
+- Claim SOL / Claim ORE chuyển đổi lamports/grams từ log
+- Claim Yield: instruction type 12 + synthetic fixture bảo đảm mapping
 
-### **Tested with 5 Real Deploy Transactions:**
-- ✅ All successfully transformed
-- ✅ All authorities extracted correctly
-- ✅ All amounts parsed accurately
-- ✅ All fields match schema
-- ✅ All data types correct
+### Staking Pipelines
+- Deposit / Withdraw parse amount từ emoji log, authority từ instruction type 10/11
+- Amount chuyển sang grams trước khi lưu trữ
 
-### **Checkpoint Flow Verified:**
-- ✅ Base, split, refund, top-miner, motherlode logs parsed
-- ✅ Authority resolved from checkpoint instruction accounts
-- ✅ Totals (SOL/ORE) derived consistently
-- ✅ 5 real checkpoint transactions transformed end-to-end
+### Bury Pipeline
+- Merge emoji logs 📈 💰 🔥 (swap/share/burn)
+- Chuyển đổi SOL → lamports, ORE → grams giữ nguyên độ chính xác
+
+### Activity Router
+- `parseRawTransaction` thử lần lượt mọi ETL parser, ưu tiên claim/staking/bury → checkpoint → deploy
+- Trả về `activityType` + payload tương ứng, hoặc danh sách rỗng khi không match
 
 ---
 
-## 📊 **Data Coverage Assessment**
+## 📁 **Fixture Coverage**
 
-### **For "Lịch sử Deploy" Use Case:**
-
-| Data Point | Available | Quality | Source |
-|-----------|-----------|---------|--------|
-| Authority | ✅ | 100% | accountKeys + BN conversion |
-| Timestamp | ✅ | 100% | blockTime |
-| Amount SOL | ✅ | 100% | Program logs |
-| Round ID | ✅ | 100% | Program logs |
-| Num Squares | ✅ | 100% | Program logs |
-| Signature | ✅ | 100% | Transaction |
-| Slot | ✅ | 100% | Transaction |
-| Is Automation | ✅ | 100% | Accounts detection |
-| Success Status | ✅ | 100% | err field |
-| **Exact Squares** | ✅ | 100% | Instruction mask decoding |
-
-**Overall: 9/10 fields = 90% complete!**
+```
+Fixtures: test/fixtures/sample-events.json
+Deploys:      5
+Checkpoints:  5
+Claims SOL:   3
+Claims ORE:   3
+Claim Yields: 0 (synthetic)
+Deposits:     3
+Withdraws:    3
+Bury:         3
+Total:       25 real transactions
+```
 
 ---
 
-## 🎯 **Analytics Capabilities**
+## 📈 **Data Coverage Assessment**
 
-### **✅ CAN Answer:**
+| Feature | Deploy | Checkpoint | Claim SOL | Claim ORE | Claim Yield | Deposit | Withdraw | Bury |
+|---------|--------|------------|-----------|-----------|-------------|---------|----------|------|
+| Signature / Slot / BlockTime | ✅ | ✅ | ✅ | ✅ | ✅ (synthetic) | ✅ | ✅ | ✅ |
+| Authority extraction | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | – |
+| Amount (SOL → lamports) | ✅ | ✅ | ✅ | – | – | – | – | ✅ |
+| Amount (ORE → grams) | ✅ | ✅ | – | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Squares mask | ✅ | – | – | – | – | – | – | – |
+| Rewards breakdown | – | ✅ | ✅ | ✅ | – | – | – | – |
+| Staking balance | – | – | – | – | – | ✅ | ✅ | – |
+| Bury swap/share/burn | – | – | – | – | – | – | – | ✅ |
 
-1. **"Tất cả lịch sử deploy của miner X?"**
-   ```javascript
-   db.deploys.find({ authority: "X" }).sort({ slot: 1 })
+> Claim Yield vẫn dùng synthetic fixture; khi có dữ liệu thực, cập nhật fixtures & tests để nâng coverage thực tế.
+
+---
+
+## 🚀 **ETL Deployment Plan**
+
+1. **Chạy từng ETL (nếu cần backfill có kiểm soát)**
+   ```bash
+   npm run etl:deploy
+   npm run etl:checkpoint
+   npm run etl:claim-sol
+   npm run etl:claim-ore
+   npm run etl:claim-yield
+   npm run etl:deposit
+   npm run etl:withdraw
+   npm run etl:bury
    ```
-   → ✅ Complete timeline!
 
-2. **"Miner X deploy tổng bao nhiêu SOL?"**
-   ```javascript
-   db.deploys.aggregate([
-     { $match: { authority: "X" } },
-     { $group: { _id: null, total: { $sum: "$amountSOL" } } }
-   ])
+2. **Full pipeline**
+   ```bash
+   BATCH_SIZE=100 npm run etl:all
    ```
-   → ✅ Total volume!
+   - Ước tính ~4‑5 giờ
+   - RAM ~200 MB, log ghi qua `winston`
 
-3. **"Miner X deploy bao nhiêu lần mỗi round?"**
-   ```javascript
-   db.deploys.aggregate([
-     { $match: { authority: "X" } },
-     { $group: { _id: "$roundId", count: { $sum: 1 } } }
-   ])
-   ```
-   → ✅ Deploy frequency!
-
-4. **"Top 10 miners by volume?"**
-   ```javascript
-   db.deploys.aggregate([
-     { $group: { _id: "$authority", total: { $sum: "$amountSOL" } } },
-     { $sort: { total: -1 } },
-     { $limit: 10 }
-   ])
-   ```
-   → ✅ Leaderboard!
-
-5. **"Deploy activity over time?"**
-   ```javascript
-   db.deploys.aggregate([
-     { $group: {
-         _id: { $dateToString: { format: "%Y-%m-%d", ... } },
-         volume: { $sum: "$amountSOL" }
-     }}
-   ])
-   ```
-   → ✅ Time-series!
-
-### **⚠️ CANNOT Answer (need squares):**
-
-- ❌ "Which squares does miner X prefer?"
-- ❌ "Square popularity heatmap"
-- ❌ "Winning square patterns"
-
-**Workaround:** Add later via miner account state lookup
+3. **Sau ETL**
+   - Kết nối DB `ore_transformed` vào dashboard (Superset / Metabase)
+   - Monitor collection `ore_transformed.etl_state` để phát hiện lỗi pipeline
 
 ---
 
-## 🚀 **Production Deployment Plan**
+## ✅ **Production Checklist**
 
-### **Phase 1: Deploy ETL (Ready Now)**
-
-```bash
-cd ore-etl
-
-# Step 1: Run full Deploy ETL
-npm run etl:deploy
-
-# Expected:
-# - Input: 2,124,019 deploy transactions
-# - Output: ~600K-700K DeployActivity documents
-# - Time: ~2-3 hours
-# - Success rate: 95%+
-```
-
-### **Phase 2: Deploy Checkpoint ETL**
-
-```bash
-npm run etl:checkpoint
-
-# Expected:
-# - Input: 1,571,180 checkpoint transactions
-# - Output: ~500K-600K CheckpointActivity documents
-# - Time: ~2 hours
-```
-
-### **Phase 3: Analytics**
-
-```bash
-npm run analytics
-
-# Will show:
-# - Top miners by volume
-# - Square distribution (numSquares, not exact squares)
-# - Round statistics
-# - Automation vs manual
-```
+- [x] Mongo source & target kết nối thành công
+- [x] Schema chuẩn hoá cho deploy / checkpoint / claim / staking / bury
+- [x] InstructionParser cover OreInstruction 2→13
+- [x] Squares deploy giải chuẩn (không còn `null`)
+- [x] Reward checkpoint (base/split/top/motherlode/refund) tổng hợp đúng
+- [x] Claim SOL/ORE/Yield chuyển đổi lamports/grams
+- [x] Deposit/Withdraw staking verified
+- [x] Bury swap/share/burn merge đúng số liệu
+- [x] Activity router (RawTransaction → activityType)
+- [x] 112/112 tests pass + coverage >90% parser
+- [x] README-FINAL / TEST-RESULTS / FINAL-STATUS cập nhật
+- [ ] Chạy `npm run etl:all` trên production (pending)
 
 ---
 
-## ✅ **Quality Assurance Checklist**
+## 📚 **Tài liệu & Công cụ**
 
-- [x] Jest installed and configured
-- [x] Sample data extracted (25 real transactions)
-- [x] Unit tests written (34 tests)
-- [x] E2E tests written (23 tests)
-- [x] All 57 tests passing
-- [x] Real data tested
-- [x] Authority extraction verified
-- [x] Log parsing verified
-- [x] Schema compliance verified
-- [x] Error handling verified
-- [x] Integration points verified
-- [x] Coverage report generated (44% overall, 85% parsers)
-
-**Status: ✅ ALL CHECKS PASSED**
+- `README-FINAL.md` – quick start + giá trị bàn giao + activity parser usage
+- `TEST-RESULTS.md` – thống kê test & coverage chi tiết
+- `scripts/extract-samples.js` – tái tạo fixtures từ Mongo
+- `src/etl/activity-parser.ts` – router parse raw transaction
+- `run-*.ts` – orchestration cho từng ETL module
 
 ---
 
-## 📈 **Expected Results After Full ETL**
+## 🚀 **Next Steps Gợi Ý**
 
-### **From 2.25M+ transactions:**
-
-```
-ore_transformed/
-├── deploys: ~600K-700K documents
-│   ├── All with authority ✅
-│   ├── All with amounts ✅
-│   ├── All with roundId ✅
-│   └── All with timestamps ✅
-│
-├── checkpoints: ~500K-600K documents
-│   ├── All with rewards breakdown ✅
-│   ├── All with roundId ✅
-│   └── Cross-referenceable with deploys ✅
-│
-└── etl_state: Track processing progress ✅
-```
+1. Chạy full ETL với `BATCH_SIZE=100`.  
+2. Thiết lập dashboard cho deploy/reward/staking/bury.  
+3. Cập nhật fixture & test khi có Claim Yield thực tế.  
+4. Bổ sung ETL khác (Reset, Automation) nếu cần metrics sâu hơn.  
+5. Tự động hoá (cron/Airflow) sau khi vận hành thủ công ổn định.
 
 ---
 
-## 💎 **Value Delivered**
-
-### **Complete Test Infrastructure:**
-- ✅ Jest framework setup
-- ✅ Real data fixtures (25 samples)
-- ✅ Comprehensive test suites
-- ✅ E2E validation
-- ✅ CI/CD ready
-
-### **Verified Capabilities:**
-- ✅ Parse 100% of program logs
-- ✅ Extract 100% of authorities
-- ✅ Transform to structured data
-- ✅ Handle errors gracefully
-- ✅ Process millions of transactions
-
-### **Documentation:**
-- ✅ Test results documented
-- ✅ Coverage reports available
-- ✅ E2E flow validated
-- ✅ Known limitations documented
-
----
-
-## 🎯 **Immediate Next Action**
-
-```bash
-# You are CLEAR to run full ETL!
-npm run etl:all
-
-# Monitor progress:
-# Terminal 1: Watch ETL logs
-# Terminal 2: Query ore_transformed.etl_state
-
-# Expected completion: 3-4 hours
-# Expected success rate: 95%+
-```
-
----
-
-## 🏆 **Success Metrics**
-
-- ✅ **Test Coverage**: 48 passing tests
-- ✅ **Data Quality**: 90% complete (9/10 fields)
-- ✅ **Reliability**: Verified with real data
-- ✅ **Performance**: ~40 deploys/second
-- ✅ **Confidence**: 95% (production ready)
-
----
-
-**Status: 🚀 READY FOR LAUNCH!**
-
-*All tests passed, verified with real data, ready for 2M+ transactions*
-
----
-
-*Final verification: November 12, 2025, 06:45 UTC*
+*Cập nhật: 12/11/2025*
 

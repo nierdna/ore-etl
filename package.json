@@ -14,6 +14,12 @@
     "test:coverage": "jest --coverage",
     "etl:deploy": "ts-node src/etl/run-deploy.ts",
     "etl:checkpoint": "ts-node src/etl/run-checkpoint.ts",
+    "etl:claim-sol": "ts-node src/etl/run-claim-sol.ts",
+    "etl:claim-ore": "ts-node src/etl/run-claim-ore.ts",
+    "etl:deposit": "ts-node src/etl/run-deposit.ts",
+    "etl:withdraw": "ts-node src/etl/run-withdraw.ts",
+    "etl:claim-yield": "ts-node src/etl/run-claim-yield.ts",
+    "etl:bury": "ts-node src/etl/run-bury.ts",
     "etl:all": "ts-node src/etl/run-all.ts",
     "query": "ts-node src/queries/sample-queries.ts",
     "analytics": "ts-node src/analytics/examples.ts"

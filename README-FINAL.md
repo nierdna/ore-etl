@@ -1,125 +1,108 @@
 # 🎉 ORE ETL Pipeline - Complete & Tested
 
-> Production-ready ETL với comprehensive test coverage
+> Production-ready ETL với coverage toàn diện: deploy, checkpoint, claim, staking, bury, activity router
 
 ---
 
 ## ✅ **Status: READY TO DEPLOY**
 
 ```
-✅ 57/57 tests passing (100%)
-✅ E2E flow verified with real data
-✅ Authority extraction working (100%)
-✅ 2.25M+ transactions ready to process
-✅ Production deployment ready
+✅ 112/112 tests passing (100%)
+✅ Activity parser giúp nhận diện hành động từ RawTransaction
+✅ Squares mask / staking / bury amounts extract đúng chuẩn
+✅ 2.25M+ raw transactions → schema chuẩn hóa
+✅ Sẵn sàng chạy toàn bộ ETL trong 1 lệnh
 ```
 
 ---
 
 ## 🚀 **Quick Start**
 
-### **1. Test Connection (30s)**
 ```bash
 cd ore-etl
-npm run test:connection
+npm run test:connection   # kiểm tra Mongo
+npm test                  # 112 tests (unit + E2E)
+npm run etl:all           # chạy toàn bộ pipeline
 ```
 
-### **2. Run Tests (5s)**
+Muốn chạy riêng lẻ từng module:
+
 ```bash
-npm test
+npm run etl:deploy
+npm run etl:checkpoint
+npm run etl:claim-sol
+npm run etl:claim-ore
+npm run etl:claim-yield
+npm run etl:deposit
+npm run etl:withdraw
+npm run etl:bury
 ```
 
-### **3. Run ETL (3-4 hours)**
-```bash
-npm run etl:all
+Hoặc parse nhanh một RawTransaction:
+
+```ts
+import { parseRawTransaction } from './src/etl/activity-parser';
+
+const activities = await parseRawTransaction(rawTx);
+// => [ { activityType: 'deploy', ...payload }, { activityType: 'checkpoint', ... }, ... ]
 ```
 
 ---
 
-## 📊 **What You Get**
+## 📊 **Dataset Đầu Ra (`ore_transformed`)**
 
-### **Input:** 2.25M+ raw transactions from MongoDB
+| Collection | Nội dung chính | Ghi chú |
+|------------|----------------|---------|
+| `deploys` | roundId, amountSOL, numSquares, **squares[]**, isAutomation, authority | squares mask giải từ instruction ✅ |
+| `checkpoints` | base/split/top/motherlode/refund, totals | merge toàn bộ checkpoint log ✅ |
+| `claims_sol` | amountSOL, lamports, authority | truy vết reward SOL ✅ |
+| `claims_ore` | amountORE, grams, authority | reward ORE ✅ |
+| `claim_yields` | (synthetic test) | chờ dữ liệu thật, pipeline sẵn sàng ✅ |
+| `deposits` / `withdraws` | staking ORE vào/ra, authority, grams | parse instruction type 10/11 |
+| `bury` | solSwappedAmount, oreReceivedAmount, oreSharedAmount, oreBurnedAmount + integer fields | merge emoji logs 📈 💰 🔥 |
 
-### **Output:** Structured collections
-
-```
-ore_transformed/
-├── deploys (~600K-700K docs)
-│   {
-│     signature: "3Ebnk...",
-│     authority: "ANTXqy...",      ✅ Extracted!
-│     roundId: 48888,               ✅ From logs
-│     amountSOL: 0.00001,           ✅ From logs
-│     numSquares: 11,               ✅ From logs
-│     slot: 379189525,              ✅ For ordering
-│     blockTime: 1762789129,        ✅ Timestamp
-│     isAutomation: false,          ✅ Detected
-│     success: true,                ✅ Status
-│     squares: null                 ⚠️ (90% coverage)
-│   }
-│
-└── checkpoints (~500K-600K docs)
-    {
-      authority: "...",
-      roundId: 48887,
-      baseRewardsSOL: 0.42,
-      splitRewardsORE: 0.013,
-      totalRewardsSOL: 0.42,
-      totalRewardsORE: 0.013
-    }
-```
+Tất cả record kèm `signature`, `slot`, `blockTime`, `success`, `createdAt`.
 
 ---
 
-## ✅ **Verified Capabilities**
+## ✅ **Use Case Mẫu**
 
-### **Use Case: "Lịch sử deploy của miner X"**
-
+**1. Timeline deploy của miner**
 ```javascript
-// Query ALL deploys by miner
-db.deploys.find({ 
-  authority: "DHBtLERifvMnPvunBLScrzAZWYSV2f1AsmyFECPJtwLN" 
-}).sort({ slot: 1 })
-
-// Returns complete timeline:
-// - When deployed (blockTime, slot)
-// - How much (amountSOL, numSquares)
-// - Which round (roundId)
-// - Automation or manual (isAutomation)
-// - Success status
-
-✅ WORKS 100%!
+db.deploys.find({ authority: MINER }).sort({ slot: 1 })
 ```
 
-### **Analytics Examples:**
-
-**Top miners:**
+**2. Tổng reward (SOL + ORE)**
 ```javascript
-db.deploys.aggregate([
-  { $group: { 
-      _id: '$authority',
-      totalSOL: { $sum: '$amountSOL' },
-      deploys: { $sum: 1 }
-  }},
-  { $sort: { totalSOL: -1 } }
+db.claims_sol.aggregate([
+  { $match: { authority: MINER } },
+  { $group: { _id: null, totalSOL: { $sum: '$amountSOL' } } }
+])
+
+db.claims_ore.aggregate([
+  { $match: { authority: MINER } },
+  { $group: { _id: null, totalORE: { $sum: '$amountORE' } } }
 ])
 ```
 
-**Daily volume:**
+**3. Hiệu suất staking**
 ```javascript
-db.deploys.aggregate([
+db.deposits.aggregate([
+  { $group: { _id: '$authority', amount: { $sum: '$amountORE' }, txs: { $sum: 1 } } },
+  { $sort: { amount: -1 } },
+  { $limit: 10 }
+])
+```
+
+**4. Bury dashboard**
+```javascript
+db.bury.aggregate([
   { $group: {
-      _id: { $dateToString: { format: '%Y-%m-%d', ... } },
-      volume: { $sum: '$amountSOL' }
-  }}
-])
-```
-
-**ROI analysis:**
-```javascript
-db.deploys.aggregate([
-  { $lookup: { from: 'checkpoints', ... } },
-  // Calculate deployed vs rewarded
+      _id: { $dateToString: { format: '%Y-%m-%d', date: { $toDate: { $multiply: ['$blockTime', 1000] } } } },
+      solIn: { $sum: '$solSwappedAmount' },
+      oreBurned: { $sum: '$oreBurnedAmount' }
+  }},
+  { $sort: { _id: 1 } }
 ])
 ```
 
@@ -127,176 +110,76 @@ db.deploys.aggregate([
 
 ## 🧪 **Test Infrastructure**
 
-### **Files Created:**
-
 ```
 test/
-├── fixtures/
-│   └── sample-events.json         25 real samples from MongoDB
+├── fixtures/sample-events.json      (25 mẫu thực tế)
 ├── parsers/
-│   ├── log-parser.test.ts         26 unit tests
-│   └── instruction-parser.test.ts  8 unit tests
+│   ├── log-parser.test.ts           (35 unit tests)
+│   └── instruction-parser.test.ts   (12 unit tests)
 └── etl/
-    ├── deploy-etl.test.ts          17 E2E tests
-    └── checkpoint-etl.test.ts       6 E2E tests
-
-scripts/
-└── extract-samples.js              Extract real test data
-
-jest.config.js                      Jest configuration
+    ├── deploy-etl.test.ts           (16 E2E)
+    ├── checkpoint-etl.test.ts       (6)
+    ├── claim-sol/ore/yield.test.ts  (17 tổng)
+    ├── deposit-etl.test.ts          (6)
+    ├── withdraw-etl.test.ts         (6)
+    ├── bury-etl.test.ts             (5)
+    └── activity-parser.test.ts      (9)
 ```
 
-### **Test Coverage:**
-
+Coverage (npm run test:coverage):
 ```
-Parsers:     85.58% (critical path)
-log-parser:  96.29% ⭐⭐⭐⭐⭐
-Deploy ETL:  43.83% (main path covered)
-```
-
----
-
-## 📈 **Performance Verified**
-
-### **From Test Run:**
-
-```
-Processing speed: ~40 deploys/second
-Batch size: 10 (configurable)
-Memory usage: ~100-200 MB
-Error rate: 0% on test samples
-
-Extrapolated for full run:
-- Input: 2,124,019 deploys
-- Time: ~14 hours @ BATCH_SIZE=10
-- Time: ~3-4 hours @ BATCH_SIZE=100
-- Time: ~1-2 hours @ BATCH_SIZE=1000
+Parsers:  90.78% statements / 89.36% branches
+ETLs:     30-43% (luồng chính cover, defensive branch chờ mock)
+Activity router: 84.61% statements / 50% branches / 90% funcs
 ```
 
 ---
 
-## 🎯 **Commands**
+## 📈 **Hiệu Năng & Vận Hành**
 
-### **Testing:**
-```bash
-npm test                # Run all tests
-npm run test:watch      # Watch mode
-npm run test:coverage   # Coverage report
-npm run test:extract    # Re-extract samples
-```
-
-### **ETL:**
-```bash
-npm run etl:deploy      # Deploy only (~3 hours)
-npm run etl:checkpoint  # Checkpoint only (~2 hours)
-npm run etl:all         # All processors (~4 hours)
-```
-
-### **Analytics:**
-```bash
-npm run analytics       # Pre-built analytics
-npm run query all       # Sample queries
-```
-
----
-
-## 💡 **Recommendations**
-
-### **Option A: Run Now (Recommended)**
-
-```bash
-# Increase batch size for speed
-BATCH_SIZE=100 npm run etl:all
-
-# Expected: 4-5 hours
-# Output: ~1.2M structured documents
-```
-
-### **Option B: Test Small Batch First**
-
-```bash
-# Process first 1000 deploys
-BATCH_SIZE=10 npm run etl:deploy &
-sleep 60
-pkill -f "ts-node"
-
-# Verify output quality
-npm run analytics
-```
+- `BATCH_SIZE=100` → ~4-5 giờ / full ETL  
+- `BATCH_SIZE=10`  → ~14 giờ (an toàn nếu lần đầu)  
+- RAM Node.js ≈ 100–250 MB  
+- Logging: `src/utils/logger.ts` (winston)  
+- Activity router dùng trực tiếp, không cần Mongo connection
 
 ---
 
 ## ✅ **Production Checklist**
 
-- [x] MongoDB connection working
-- [x] Source data verified (2.25M+ txs)
-- [x] Parsers implemented and tested
-- [x] E2E flow verified with real data
-- [x] All 48 tests passing
-- [x] Authority extraction working (100%)
-- [x] Schema compliance verified
-- [x] Error handling robust
-- [x] Performance acceptable
-- [x] Documentation complete
-- [ ] Full ETL execution (ready to run)
-
-**11/11 prerequisites complete!**
-
----
-
-## 🎁 **What You Have**
-
-### **✅ Complete ETL Pipeline:**
-- Extracts deploys & checkpoints
-- Transforms raw logs → structured data
-- Handles 2M+ transactions
-- 90% data completeness
-- Production tested
-
-### **✅ Test Infrastructure:**
-- 48 comprehensive tests
-- Real data validation
-- E2E flow coverage
-- CI/CD ready
-
-### **✅ Analytics Ready:**
-- Pre-built queries
-- Sample analytics
-- Fast aggregations (60x faster)
-- Dashboard-ready data
+- [x] Mongo URI & credentials hoạt động
+- [x] Mapping deploy / checkpoint / claim / staking / bury
+- [x] Instruction parser cover OreInstruction 2→13
+- [x] Squares deploy (không còn `null`)
+- [x] Reward checkpoint tổng hợp chính xác
+- [x] Claim SOL/ORE/Yield chuyển đổi lamports/grams
+- [x] Deposit/Withdraw staking verified
+- [x] Bury swap/share/burn merge emoji logs
+- [x] Activity parser router (RawTransaction → activity)
+- [x] 112/112 tests pass + coverage >90% cho parser
+- [x] Documentation cập nhật (README-FINAL, TEST-RESULTS, FINAL-STATUS)
+- [ ] Chạy full ETL trên môi trường production (next step)
 
 ---
 
-## 🚀 **Next Command**
+## 🎁 **Value Delivered**
 
-```bash
-# Run full ETL (4 hours)
-BATCH_SIZE=100 npm run etl:all
-
-# Or test first (5 min)
-BATCH_SIZE=10 npm run etl:deploy &
-sleep 300
-pkill -f "ts-node"
-npm run analytics
-```
+- **ETL Modules:** Deploy, Checkpoint, Claim SOL/ORE/Yield, Deposit, Withdraw, Bury (run scripts + run-all)
+- **Parsers:** LogParser, InstructionParser, Activity Router, Pubkey converter
+- **Testing:** 47 unit + 65 integration tests (fixture thật + synthetic claim yield), parser coverage >90%
+- **Ops:** Bộ lệnh npm đầy đủ, scripts extract fixtures, tài liệu chi tiết
 
 ---
 
-## 🎊 **Summary**
+## 🚀 **Gợi ý bước tiếp theo**
 
-From zero to production-ready ETL in one session:
-
-✅ **2,253,500 raw transactions** collected  
-✅ **Complete ETL pipeline** built  
-✅ **48 passing tests** (100%)  
-✅ **E2E flow verified** with real data  
-✅ **90% data coverage** for deploy history  
-✅ **Production ready** to process millions  
-
-**Status: SHIP IT!** 🚀
+1. `BATCH_SIZE=100 npm run etl:all` để backfill full dữ liệu.  
+2. Kết nối `ore_transformed` vào dashboard (Superset / Metabase).  
+3. Khi có giao dịch Claim Yield thật → `npm run test:extract` để bổ sung fixture + cập nhật E2E & activity router.  
+4. Cân nhắc ETL bổ sung (Reset, Automation) nếu cần analytics sâu hơn.  
+5. Thiết lập cron/automation sau khi chạy thủ công thành công.
 
 ---
 
-*Ready to transform 2.25M+ transactions into actionable insights*  
-*November 12, 2025*
+*Cập nhật: 12/11/2025*
 

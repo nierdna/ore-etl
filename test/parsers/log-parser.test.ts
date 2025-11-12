@@ -175,6 +175,40 @@ describe('LogParser', () => {
         }
       });
     });
+
+    it('should parse claim SOL sample values', () => {
+      const tx = samples.claims_sol[0];
+      const parsed = LogParser.parseAll(tx.parsedData.meta.logMessages);
+      const claimLog = parsed.find(l => l.type === 'claim_sol');
+
+      expect(claimLog).toBeDefined();
+      if (claimLog && claimLog.type === 'claim_sol') {
+        expect(claimLog.amountSOL).toBeCloseTo(0.210803314, 12);
+      }
+    });
+
+    it('should parse claim ORE sample values', () => {
+      const tx = samples.claims_ore[0];
+      const parsed = LogParser.parseAll(tx.parsedData.meta.logMessages);
+      const claimLog = parsed.find(l => l.type === 'claim_ore');
+
+      expect(claimLog).toBeDefined();
+      if (claimLog && claimLog.type === 'claim_ore') {
+        expect(claimLog.amountORE).toBeCloseTo(0.05545121976, 12);
+      }
+    });
+
+    it('should parse all claim ORE samples', () => {
+      samples.claims_ore.forEach(tx => {
+        const logs = tx.parsedData.meta.logMessages;
+        const parsed = LogParser.parseAll(logs);
+        const claimLog = parsed.find(l => l.type === 'claim_ore');
+
+        if (claimLog && claimLog.type === 'claim_ore') {
+          expect(claimLog.amountORE).toBeGreaterThan(0);
+        }
+      });
+    });
   });
 
   describe('Staking Logs', () => {
@@ -206,6 +240,40 @@ describe('LogParser', () => {
         
         if (depositLog && depositLog.type === 'deposit') {
           expect(depositLog.amountORE).toBeGreaterThan(0);
+        }
+      });
+    });
+
+    it('should parse deposit sample values', () => {
+      const tx = samples.deposits[0];
+      const parsed = LogParser.parseAll(tx.parsedData.meta.logMessages);
+      const depositLog = parsed.find(l => l.type === 'deposit');
+
+      expect(depositLog).toBeDefined();
+      if (depositLog && depositLog.type === 'deposit') {
+        expect(depositLog.amountORE).toBeCloseTo(3, 9);
+      }
+    });
+
+    it('should parse withdraw sample values', () => {
+      const tx = samples.withdraws[0];
+      const parsed = LogParser.parseAll(tx.parsedData.meta.logMessages);
+      const withdrawLog = parsed.find(l => l.type === 'withdraw');
+
+      expect(withdrawLog).toBeDefined();
+      if (withdrawLog && withdrawLog.type === 'withdraw') {
+        expect(withdrawLog.amountORE).toBeCloseTo(36.48519026337, 11);
+      }
+    });
+
+    it('should parse all withdraw samples', () => {
+      samples.withdraws.forEach(tx => {
+        const logs = tx.parsedData.meta.logMessages;
+        const parsed = LogParser.parseAll(logs);
+        const withdrawLog = parsed.find(l => l.type === 'withdraw');
+
+        if (withdrawLog && withdrawLog.type === 'withdraw') {
+          expect(withdrawLog.amountORE).toBeGreaterThan(0);
         }
       });
     });
@@ -272,6 +340,18 @@ describe('LogParser', () => {
         const merged = LogParser.mergeBuryLogs(buryLogs);
         expect(merged.type).toBe('bury');
       });
+    });
+
+    it('should parse bury sample values', () => {
+      const tx = samples.bury[0];
+      const parsed = LogParser.parseAll(tx.parsedData.meta.logMessages);
+      const buryLogs = parsed.filter(l => l.type === 'bury') as BuryLog[];
+      const merged = LogParser.mergeBuryLogs(buryLogs);
+
+      expect(merged.solSwapped).toBeCloseTo(13.568739222, 12);
+      expect(merged.oreReceived).toBeCloseTo(5.19539780134, 12);
+      expect(merged.oreShared).toBeCloseTo(0.51953978013, 12);
+      expect(merged.oreBurned).toBeCloseTo(4.67585802121, 12);
     });
   });
 

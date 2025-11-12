@@ -58,7 +58,19 @@ async function extractSamples() {
       .toArray();
     console.log(`   Found ${samples.claims_ore.length} samples\n`);
 
-    // 5. Deposit samples
+    // 5. Claim Yield samples
+    console.log('🌾 Extracting Claim Yield samples...');
+    samples.claim_yields = await collection
+      .find({
+        'parsedData.meta.logMessages': { $regex: 'Claiming.*ORE$' },
+        'parsedData.transaction.message.instructions': { $elemMatch: { data: 'D' } },
+      })
+      .limit(3)
+      .project({ signature: 1, slot: 1, blockTime: 1, err: 1, parsedData: 1, createdAt: 1 })
+      .toArray();
+    console.log(`   Found ${samples.claim_yields.length} samples\n`);
+
+    // 6. Deposit samples
     console.log('📥 Extracting Deposit samples...');
     samples.deposits = await collection
       .find({ 'parsedData.meta.logMessages': { $regex: 'Depositing.*ORE' } })
@@ -67,7 +79,7 @@ async function extractSamples() {
       .toArray();
     console.log(`   Found ${samples.deposits.length} samples\n`);
 
-    // 6. Withdraw samples
+    // 7. Withdraw samples
     console.log('📤 Extracting Withdraw samples...');
     samples.withdraws = await collection
       .find({ 'parsedData.meta.logMessages': { $regex: 'Withdrawing.*ORE' } })
@@ -76,7 +88,7 @@ async function extractSamples() {
       .toArray();
     console.log(`   Found ${samples.withdraws.length} samples\n`);
 
-    // 7. Bury samples
+    // 8. Bury samples
     console.log('🔥 Extracting Bury samples...');
     samples.bury = await collection
       .find({ 'parsedData.meta.logMessages': { $regex: 'Swapped.*SOL' } })
@@ -103,6 +115,7 @@ async function extractSamples() {
     console.log(`   Checkpoints: ${samples.checkpoints.length}`);
     console.log(`   Claims SOL: ${samples.claims_sol.length}`);
     console.log(`   Claims ORE: ${samples.claims_ore.length}`);
+    console.log(`   Claim Yields: ${samples.claim_yields.length}`);
     console.log(`   Deposits: ${samples.deposits.length}`);
     console.log(`   Withdraws: ${samples.withdraws.length}`);
     console.log(`   Bury: ${samples.bury.length}`);

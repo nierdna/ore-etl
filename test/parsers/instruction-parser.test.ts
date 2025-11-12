@@ -36,25 +36,133 @@ describe('InstructionParser', () => {
       }
     });
 
-  it('should extract accounts from checkpoint transaction', () => {
-    const tx = samples.checkpoints[0];
-    const instructions = tx.parsedData.transaction.message.instructions;
+    it('should extract accounts from checkpoint transaction', () => {
+      const tx = samples.checkpoints[0];
+      const instructions = tx.parsedData.transaction.message.instructions;
 
-    const oreInstruction = instructions.find((ix: any) => {
-      const accountsLength = ix.accounts?.length || 0;
-      return accountsLength >= 5 && InstructionParser.getInstructionType(ix.data) === 2;
+      const oreInstruction = instructions.find((ix: any) => {
+        const accountsLength = ix.accounts?.length || 0;
+        return accountsLength >= 5 && InstructionParser.getInstructionType(ix.data) === 2;
+      });
+
+      if (oreInstruction) {
+        const accounts = InstructionParser.extractAccounts(oreInstruction);
+
+        expect(accounts.signer).toBeDefined();
+        expect(accounts.authority).toBe(accounts.signer);
+        expect(accounts.board).toBeDefined();
+        expect(accounts.miner).toBeDefined();
+        expect(accounts.round).toBeDefined();
+      }
     });
 
-    if (oreInstruction) {
-      const accounts = InstructionParser.extractAccounts(oreInstruction);
+    it('should extract accounts from claim SOL transaction', () => {
+      const tx = samples.claims_sol[0];
+      const instructions = tx.parsedData.transaction.message.instructions;
 
-      expect(accounts.signer).toBeDefined();
+      const claimInstruction = instructions.find(
+        (ix: any) =>
+          (ix.accounts?.length || 0) >= 3 && InstructionParser.getInstructionType(ix.data) === 3
+      );
+
+      if (claimInstruction) {
+        const accounts = InstructionParser.extractAccounts(claimInstruction);
+
+        expect(accounts.signer).toBeDefined();
+        expect(accounts.authority).toBe(accounts.signer);
+        expect(accounts.miner).toBeDefined();
+        expect(accounts.systemProgram).toBeDefined();
+      }
+    });
+
+    it('should extract accounts from claim ORE transaction', () => {
+      const tx = samples.claims_ore[0];
+      const instructions = tx.parsedData.transaction.message.instructions;
+
+      const claimInstruction = instructions.find(
+        (ix: any) =>
+          (ix.accounts?.length || 0) >= 9 && InstructionParser.getInstructionType(ix.data) === 4
+      );
+
+      if (claimInstruction) {
+        const accounts = InstructionParser.extractAccounts(claimInstruction);
+
+        expect(accounts.signer).toBeDefined();
+        expect(accounts.authority).toBe(accounts.signer);
+        expect(accounts.mint).toBeDefined();
+        expect(accounts.recipient).toBeDefined();
+        expect(accounts.treasury).toBeDefined();
+        expect(accounts.treasuryTokens).toBeDefined();
+        expect(accounts.tokenProgram).toBeDefined();
+        expect(accounts.associatedTokenProgram).toBeDefined();
+      }
+    });
+
+    it('should extract accounts from deposit transaction', () => {
+      const tx = samples.deposits[0];
+      const instructions = tx.parsedData.transaction.message.instructions;
+
+      const depositInstruction = instructions.find(
+        (ix: any) =>
+          (ix.accounts?.length || 0) >= 9 && InstructionParser.getInstructionType(ix.data) === 10
+      );
+
+      if (depositInstruction) {
+        const accounts = InstructionParser.extractAccounts(depositInstruction);
+
+        expect(accounts.signer).toBeDefined();
+        expect(accounts.authority).toBe(accounts.signer);
+        expect(accounts.stake).toBeDefined();
+        expect(accounts.treasury).toBeDefined();
+        expect(accounts.stakeTokens).toBeDefined();
+      }
+    });
+
+    it('should extract accounts from withdraw transaction', () => {
+      const tx = samples.withdraws[0];
+      const instructions = tx.parsedData.transaction.message.instructions;
+
+      const withdrawInstruction = instructions.find(
+        (ix: any) =>
+          (ix.accounts?.length || 0) >= 9 && InstructionParser.getInstructionType(ix.data) === 11
+      );
+
+      if (withdrawInstruction) {
+        const accounts = InstructionParser.extractAccounts(withdrawInstruction);
+
+        expect(accounts.signer).toBeDefined();
+        expect(accounts.authority).toBe(accounts.signer);
+        expect(accounts.recipient).toBeDefined();
+        expect(accounts.stake).toBeDefined();
+        expect(accounts.stakeTokens).toBeDefined();
+      }
+    });
+
+    it('should extract accounts from claim yield instruction layout', () => {
+      const mockInstruction = {
+        data: 'D',
+        accounts: [
+          'Signer1111111111111111111111111111111111',
+          'Mint111111111111111111111111111111111111',
+          'Recipient1111111111111111111111111111111',
+          'Stake11111111111111111111111111111111111',
+          'Treasury1111111111111111111111111111111',
+          'TreasuryTok11111111111111111111111111111',
+          'Sys111111111111111111111111111111111111',
+          'Token1111111111111111111111111111111111',
+          'Assoc1111111111111111111111111111111111',
+        ],
+      };
+
+      const accounts = InstructionParser.extractAccounts(mockInstruction);
+
+      expect(accounts.signer).toBe('Signer1111111111111111111111111111111111');
       expect(accounts.authority).toBe(accounts.signer);
-      expect(accounts.board).toBeDefined();
-      expect(accounts.miner).toBeDefined();
-      expect(accounts.round).toBeDefined();
-    }
-  });
+      expect(accounts.recipient).toBe('Recipient1111111111111111111111111111111');
+      expect(accounts.stake).toBe('Stake11111111111111111111111111111111111');
+      expect(accounts.treasury).toBe('Treasury1111111111111111111111111111111');
+      expect(accounts.treasuryTokens).toBe('TreasuryTok11111111111111111111111111111');
+    });
   });
 
   describe('BN to Pubkey Conversion', () => {

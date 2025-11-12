@@ -92,6 +92,16 @@ export class InstructionParser {
     board?: string;
     miner?: string;
     round?: string;
+    systemProgram?: string;
+    mint?: string;
+    recipient?: string;
+    treasury?: string;
+    treasuryTokens?: string;
+    tokenProgram?: string;
+    associatedTokenProgram?: string;
+    stake?: string;
+    stakeTokens?: string;
+    sender?: string;
   } {
     try {
       if (!instruction.accounts || instruction.accounts.length === 0) {
@@ -124,6 +134,86 @@ export class InstructionParser {
           board: accounts[1],
           miner: accounts[2],
           round: accounts[3],
+          treasury: accounts[4],
+          systemProgram: accounts[5],
+        };
+      }
+
+      if (instructionType === 3) {
+        // Claim SOL layout: [signer, miner, systemProgram]
+        return {
+          signer: accounts[0],
+          authority: accounts[0],
+          miner: accounts[1],
+          systemProgram: accounts[2],
+        };
+      }
+
+      if (instructionType === 4) {
+        // Claim ORE layout:
+        // [signer, miner, mint, recipient, treasury, treasury_tokens, system_program, token_program, associated_token_program]
+        return {
+          signer: accounts[0],
+          authority: accounts[0],
+          miner: accounts[1],
+          mint: accounts[2],
+          recipient: accounts[3],
+          treasury: accounts[4],
+          treasuryTokens: accounts[5],
+          systemProgram: accounts[6],
+          tokenProgram: accounts[7],
+          associatedTokenProgram: accounts[8],
+        };
+      }
+
+      if (instructionType === 10) {
+        // Deposit layout:
+        // [signer, mint, sender, stake, stake_tokens, treasury, system_program, token_program, associated_token_program]
+        return {
+          signer: accounts[0],
+          authority: accounts[0],
+          mint: accounts[1],
+          sender: accounts[2],
+          stake: accounts[3],
+          stakeTokens: accounts[4],
+          treasury: accounts[5],
+          systemProgram: accounts[6],
+          tokenProgram: accounts[7],
+          associatedTokenProgram: accounts[8],
+        };
+      }
+
+      if (instructionType === 11) {
+        // Withdraw layout:
+        // [signer, mint, recipient, stake, stake_tokens, treasury, system_program, token_program, associated_token_program]
+        return {
+          signer: accounts[0],
+          authority: accounts[0],
+          mint: accounts[1],
+          recipient: accounts[2],
+          stake: accounts[3],
+          stakeTokens: accounts[4],
+          treasury: accounts[5],
+          systemProgram: accounts[6],
+          tokenProgram: accounts[7],
+          associatedTokenProgram: accounts[8],
+        };
+      }
+
+      if (instructionType === 12) {
+        // Claim Yield layout:
+        // [signer, mint, recipient, stake, treasury, treasury_tokens, system_program, token_program, associated_token_program]
+        return {
+          signer: accounts[0],
+          authority: accounts[0],
+          mint: accounts[1],
+          recipient: accounts[2],
+          stake: accounts[3],
+          treasury: accounts[4],
+          treasuryTokens: accounts[5],
+          systemProgram: accounts[6],
+          tokenProgram: accounts[7],
+          associatedTokenProgram: accounts[8],
         };
       }
 
