@@ -1,0 +1,36 @@
+{
+  "name": "ore-etl",
+  "version": "1.0.0",
+  "description": "ETL pipeline for ORE protocol transaction data",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test:connection": "node test-connection.js",
+    "test:extract": "node scripts/extract-samples.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "etl:deploy": "ts-node src/etl/run-deploy.ts",
+    "etl:checkpoint": "ts-node src/etl/run-checkpoint.ts",
+    "etl:all": "ts-node src/etl/run-all.ts",
+    "query": "ts-node src/queries/sample-queries.ts",
+    "analytics": "ts-node src/analytics/examples.ts"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.95.2",
+    "bs58": "^5.0.0",
+    "dotenv": "^16.3.1",
+    "mongodb": "^6.3.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.10.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
