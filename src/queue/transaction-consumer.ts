@@ -64,6 +64,7 @@ export class TransactionConsumer {
         durable: true,
         deadLetterExchange: '',
         deadLetterRoutingKey: this.DLQ,
+        maxLength: 100000, // Max 100k messages in queue (match with publisher)
       });
 
       // Set prefetch (concurrent processing limit)
