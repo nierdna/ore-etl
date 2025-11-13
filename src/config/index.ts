@@ -8,6 +8,11 @@ export const config = {
     sourceDatabase: process.env.SOURCE_DATABASE || 'ore',
     targetDatabase: process.env.TARGET_DATABASE || 'ore_transformed',
   },
+  rabbitmq: {
+    url: process.env.RABBITMQ_URL,
+    prefetch: parseInt(process.env.CONSUMER_PREFETCH || '10', 10),
+    maxRetries: parseInt(process.env.CONSUMER_MAX_RETRIES || '3', 10),
+  },
   etl: {
     batchSize: parseInt(process.env.BATCH_SIZE || '1000', 10),
   },
