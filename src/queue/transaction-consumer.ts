@@ -16,7 +16,7 @@ export interface ConsumerMetrics {
 export class TransactionConsumer {
   private connection: amqp.ChannelModel | null = null;
   private channel: amqp.Channel | null = null;
-  private readonly QUEUE = 'transaction-etl-v2';
+  private readonly QUEUE = 'transaction-etl-v3';
   private readonly DLQ = 'transaction-etl-dlq';
   private readonly EXCHANGE = 'ore-transactions';
   private isConsuming = false;
