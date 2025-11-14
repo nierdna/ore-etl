@@ -1,4 +1,4 @@
-import { RawTransaction, DeployActivity, CheckpointActivity, ClaimSOLActivity, ClaimOREActivity, ClaimYieldActivity, DepositActivity, WithdrawActivity, BuryActivity } from '../types/schemas';
+import { RawTransaction, DeployActivity, CheckpointActivity, ClaimSOLActivity, ClaimOREActivity, ClaimYieldActivity, DepositActivity, WithdrawActivity, BuryActivity, ResetActivity } from '../types/schemas';
 import { MongoManager } from '../database/mongo-manager';
 import { logger } from '../utils/logger';
 import { DeployETL } from './deploy-etl';
@@ -9,6 +9,7 @@ import { ClaimYieldETL } from './claim-yield-etl';
 import { DepositETL } from './deposit-etl';
 import { WithdrawETL } from './withdraw-etl';
 import { BuryETL } from './bury-etl';
+import { ResetETL } from './reset-etl';
 
 type ActivityCommon = {
   activityType: ActivityType;
@@ -22,7 +23,8 @@ export type ActivityType =
   | 'claim_yield'
   | 'deposit'
   | 'withdraw'
-  | 'bury';
+  | 'bury'
+  | 'reset';
 
 export type ParsedActivity =
   | (DeployActivity & ActivityCommon & { activityType: 'deploy' })
@@ -32,7 +34,8 @@ export type ParsedActivity =
   | (ClaimYieldActivity & ActivityCommon & { activityType: 'claim_yield' })
   | (DepositActivity & ActivityCommon & { activityType: 'deposit' })
   | (WithdrawActivity & ActivityCommon & { activityType: 'withdraw' })
-  | (BuryActivity & ActivityCommon & { activityType: 'bury' });
+  | (BuryActivity & ActivityCommon & { activityType: 'bury' })
+  | (ResetActivity & ActivityCommon & { activityType: 'reset' });
 
 type ParserEntry<T> = {
   activityType: ActivityType;
@@ -51,6 +54,7 @@ const claimYieldParser = new ClaimYieldETL(stubMongoManager);
 const depositParser = new DepositETL(stubMongoManager);
 const withdrawParser = new WithdrawETL(stubMongoManager);
 const buryParser = new BuryETL(stubMongoManager);
+const resetParser = new ResetETL(stubMongoManager);
 
 const PARSERS: ParserEntry<any>[] = [
   { activityType: 'claim_yield', parse: tx => claimYieldParser.processTransaction(tx) },
@@ -59,6 +63,7 @@ const PARSERS: ParserEntry<any>[] = [
   { activityType: 'deposit', parse: tx => depositParser.processTransaction(tx) },
   { activityType: 'withdraw', parse: tx => withdrawParser.processTransaction(tx) },
   { activityType: 'bury', parse: tx => buryParser.processTransaction(tx) },
+  { activityType: 'reset', parse: tx => resetParser.processTransaction(tx) },
   { activityType: 'checkpoint', parse: tx => checkpointParser.processTransaction(tx) },
   { activityType: 'deploy', parse: tx => deployParser.processTransaction(tx) },
 ];
@@ -158,6 +163,17 @@ async function persistParsedActivities(mongoManager: MongoManager, activities: P
       await mongoManager.saveBatch(
         mongoManager.getBuryCollection(),
         buries.map(({ activityType, ...rest }) => rest)
+      );
+    }
+
+    const resets = activities.filter(
+      (activity): activity is Extract<ParsedActivity, { activityType: 'reset' }> =>
+        activity.activityType === 'reset'
+    );
+    if (resets.length > 0) {
+      await mongoManager.saveBatch(
+        mongoManager.getResetsCollection(),
+        resets.map(({ activityType, ...rest }) => rest)
       );
     }
   } catch (error) {

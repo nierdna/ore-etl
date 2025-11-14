@@ -7,6 +7,7 @@ import { DepositETL } from './deposit-etl';
 import { WithdrawETL } from './withdraw-etl';
 import { ClaimYieldETL } from './claim-yield-etl';
 import { BuryETL } from './bury-etl';
+import { ResetETL } from './reset-etl';
 import { logger } from '../utils/logger';
 
 async function main() {
@@ -70,6 +71,13 @@ async function main() {
     logger.info('='.repeat(50));
     const buryETL = new BuryETL(mongoManager);
     await buryETL.run();
+
+    // Run Reset ETL
+    logger.info('='.repeat(50));
+    logger.info('Starting Reset ETL');
+    logger.info('='.repeat(50));
+    const resetETL = new ResetETL(mongoManager);
+    await resetETL.run();
 
     await mongoManager.disconnect();
     logger.info('='.repeat(50));
