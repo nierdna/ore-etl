@@ -54,7 +54,23 @@ const claimYieldParser = new ClaimYieldETL(stubMongoManager);
 const depositParser = new DepositETL(stubMongoManager);
 const withdrawParser = new WithdrawETL(stubMongoManager);
 const buryParser = new BuryETL(stubMongoManager);
+
+// Reset parser with caching (needs real mongoManager for roundId extraction)
 const resetParser = new ResetETL(stubMongoManager);
+const resetParserCache = new Map<MongoManager, ResetETL>();
+
+function getOrCreateResetParser(mongoManager?: MongoManager): ResetETL {
+  if (!mongoManager) {
+    return resetParser; // Use stub parser for testing
+  }
+
+  // Check cache
+  if (!resetParserCache.has(mongoManager)) {
+    resetParserCache.set(mongoManager, new ResetETL(mongoManager));
+  }
+
+  return resetParserCache.get(mongoManager)!;
+}
 
 const PARSERS: ParserEntry<any>[] = [
   { activityType: 'claim_yield', parse: tx => claimYieldParser.processTransaction(tx) },
@@ -63,9 +79,9 @@ const PARSERS: ParserEntry<any>[] = [
   { activityType: 'deposit', parse: tx => depositParser.processTransaction(tx) },
   { activityType: 'withdraw', parse: tx => withdrawParser.processTransaction(tx) },
   { activityType: 'bury', parse: tx => buryParser.processTransaction(tx) },
-  { activityType: 'reset', parse: tx => resetParser.processTransaction(tx) },
   { activityType: 'checkpoint', parse: tx => checkpointParser.processTransaction(tx) },
   { activityType: 'deploy', parse: tx => deployParser.processTransaction(tx) },
+  // Reset is handled specially in parseRawTransaction()
 ];
 
 export type ActivityParserOptions = {
@@ -188,11 +204,19 @@ export async function parseRawTransaction(
 ): Promise<ParsedActivity[]> {
   const results: ParsedActivity[] = [];
 
+  // Parse with standard parsers
   for (const parser of PARSERS) {
     const activity = await parser.parse(tx);
     if (activity) {
       results.push({ activityType: parser.activityType, ...activity } as ParsedActivity);
     }
+  }
+
+  // Handle Reset parser with caching (needs real mongoManager for roundId extraction)
+  const resetETL = getOrCreateResetParser(options.mongoManager);
+  const resetActivity = await resetETL.processTransaction(tx);
+  if (resetActivity) {
+    results.push({ activityType: 'reset', ...resetActivity } as ParsedActivity);
   }
 
   if (results.length > 0 && options.mongoManager) {

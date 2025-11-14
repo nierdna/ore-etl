@@ -228,6 +228,12 @@ export class ResetETL {
    * Deploy logs contain "Round #XXXXX: deploying..."
    */
   private async extractRoundId(tx: RawTransaction): Promise<number> {
+    // Guard: Skip if mongoManager doesn't have the method (stub mode)
+    if (!this.mongoManager ||
+      typeof this.mongoManager.getRawTransactionsCollection !== 'function') {
+      return 0;
+    }
+
     try {
       const collection = this.mongoManager.getRawTransactionsCollection();
 

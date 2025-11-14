@@ -9,6 +9,7 @@ const URI = 'mongodb://mongo:SMgVCOWRBjrAJxOvfVdkajdJjvAJRHTr@turntable.proxy.rl
 // Load compiled ResetETL
 const { ResetETL } = require('./dist/etl/reset-etl');
 const { MongoManager } = require('./dist/database/mongo-manager');
+const { parseRawTransaction } = require('./dist/etl/activity-parser');
 
 async function test() {
   const mongoManager = new MongoManager();
@@ -22,19 +23,20 @@ async function test() {
     // Fetch 3 Reset transactions
     const collection = mongoManager.getRawTransactionsCollection();
     const resetTxs = await collection
-      .find({ 'parsedData.meta.logMessages': { $regex: 'var slothash' } })
+      .find({ signature: "2KcEx9EQLZR89mbLFw9psvsCEcmyXQz6YdNma6TZ9rHCDFRBtooqpkAQZzbSUfKyJjS1d5kvAAHF8oGSXUtQW4gj" })
       .sort({ slot: -1 })
-      .limit(3)
+      .limit(1)
       .toArray();
     
     console.log(`Found ${resetTxs.length} Reset transactions\n`);
+    console.log("🚀 ~ test ~ resetTxs:", resetTxs[0])
     console.log('='.repeat(80));
     
     for (let i = 0; i < resetTxs.length; i++) {
       const tx = resetTxs[i];
       console.log(`\n${i + 1}. Processing ${tx.signature.substring(0, 30)}...`);
       
-      const result = await resetETL.processTransaction(tx);
+      const result = await parseRawTransaction(tx, { mongoManager });
       
       if (result) {
         console.log(`   ✅ Parsed successfully:`);
