@@ -5,6 +5,7 @@ import { InstructionParser } from '../parsers/instruction-parser';
 import { DeployActivity, RawTransaction } from '../types/schemas';
 import { config } from '../config';
 import { extractPubkey } from '../utils/pubkey-converter';
+import { reconstructSquaresForAutomation } from '../utils/squares-reconstructor';
 
 const LAMPORTS_PER_SOL = 1_000_000_000;
 
@@ -142,19 +143,68 @@ export class DeployETL {
         return null;
       }
 
-      // Find Deploy instruction (usually index 3 after ComputeBudget instructions)
+      // Find Deploy instruction - check all instructions, not just the first one
       const instructions = tx.parsedData?.transaction?.message?.instructions || [];
+      const innerInstructions = tx.parsedData?.meta?.innerInstructions || [];
+
       let deployInstruction = null;
       let accounts: any = {};
+      const allDeployInstructions: Array<{ parsed: any; accounts: any; source: string }> = [];
 
+      // Check main instructions
       for (const ix of instructions) {
-        // Check if this is ORE program instruction
         if (ix.data && typeof ix.data === 'string') {
           const parsed = InstructionParser.parseDeployInstruction(ix.data);
           if (parsed) {
-            deployInstruction = parsed;
-            accounts = InstructionParser.extractAccounts(ix);
-            break;
+            allDeployInstructions.push({
+              parsed,
+              accounts: InstructionParser.extractAccounts(ix),
+              source: 'main'
+            });
+          }
+        }
+      }
+
+      // Check inner instructions
+      for (const innerGroup of innerInstructions) {
+        if (innerGroup.instructions) {
+          for (const ix of innerGroup.instructions) {
+            if (ix.data && typeof ix.data === 'string') {
+              const parsed = InstructionParser.parseDeployInstruction(ix.data);
+              if (parsed) {
+                allDeployInstructions.push({
+                  parsed,
+                  accounts: InstructionParser.extractAccounts(ix),
+                  source: 'inner'
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // Select the best Deploy instruction
+      // Priority: 1) Has non-zero mask (has squares), 2) Has non-zero amount matching log
+      if (allDeployInstructions.length > 0) {
+        // First, try to find one with non-zero mask and matching amount
+        const expectedAmount = Math.round(deployLog.amountSOL * LAMPORTS_PER_SOL);
+        const withSquares = allDeployInstructions.find(
+          d => d.parsed.mask !== 0 && Math.abs(Number(d.parsed.amount) - expectedAmount) < 1000
+        );
+
+        if (withSquares) {
+          deployInstruction = withSquares.parsed;
+          accounts = withSquares.accounts;
+        } else {
+          // Fallback: use first one with non-zero mask
+          const withMask = allDeployInstructions.find(d => d.parsed.mask !== 0);
+          if (withMask) {
+            deployInstruction = withMask.parsed;
+            accounts = withMask.accounts;
+          } else {
+            // Last resort: use first one found
+            deployInstruction = allDeployInstructions[0].parsed;
+            accounts = allDeployInstructions[0].accounts;
           }
         }
       }
@@ -175,6 +225,48 @@ export class DeployETL {
       // Determine if automation
       const isAutomation = accounts.automation ? true : false;
 
+      // Handle special cases for squares
+      let finalSquares = deployInstruction?.squares || [];
+      let finalSquaresMask = deployInstruction?.mask;
+
+      // Case 1: If mask = 0 but numSquares > 0, check if it's deploy all squares (25)
+      if (deployInstruction && deployInstruction.mask === 0 && deployLog.numSquares > 0) {
+        if (deployLog.numSquares === 25) {
+          // Deploy all 25 squares - mask = 0 means all squares
+          finalSquares = [];
+          finalSquaresMask = 0;
+        } else {
+          // Mask = 0 but numSquares < 25 - automation random strategy
+          // For automation transactions with Random strategy, squares are generated from hash
+          // of authority + roundId. We can reconstruct them deterministically.
+          if (isAutomation && authority !== 'unknown') {
+            try {
+              finalSquares = reconstructSquaresForAutomation(
+                authority,
+                deployLog.roundId,
+                deployLog.numSquares
+              );
+              logger.info(`Transaction ${tx.signature}: Reconstructed ${finalSquares.length} squares for automation (authority=${authority}, roundId=${deployLog.roundId}, numSquares=${deployLog.numSquares})`);
+            } catch (error) {
+              logger.warn(`Transaction ${tx.signature}: Failed to reconstruct squares for automation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+              // Keep squares = [] if reconstruction fails
+              finalSquares = [];
+            }
+          } else {
+            // Not automation or authority unknown - cannot reconstruct
+            logger.warn(`Transaction ${tx.signature}: mask=0 but numSquares=${deployLog.numSquares}, cannot reconstruct squares (isAutomation=${isAutomation}, authority=${authority})`);
+            finalSquares = [];
+          }
+        }
+      }
+
+      // Case 2: If numSquares = 25 and squares.length = 25, set squares = [] (all squares)
+      if (deployLog.numSquares === 25 && finalSquares.length === 25) {
+        // All 25 squares selected - according to criteria, this should be squares = []
+        finalSquares = [];
+        finalSquaresMask = 0; // Or keep original mask for reference
+      }
+
       // Build activity
       const activity: DeployActivity = {
         signature: tx.signature,
@@ -185,8 +277,8 @@ export class DeployETL {
         amount: deployInstruction ? Number(deployInstruction.amount) : Math.round(deployLog.amountSOL * LAMPORTS_PER_SOL),
         amountSOL: deployLog.amountSOL,
         numSquares: deployLog.numSquares,
-        squaresMask: deployInstruction?.mask,
-        squares: deployInstruction?.squares,
+        squaresMask: finalSquaresMask,
+        squares: finalSquares,
         isAutomation,
         success,
         createdAt: new Date(),

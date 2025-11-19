@@ -33,13 +33,15 @@
     "test:parse": "ts-node test-parse-transaction.ts",
     "analyze:dlq": "ts-node analyze-dlq-signatures.ts",
     "purge:dlq": "ts-node purge-dlq.ts",
-    "purge:queue": "ts-node purge-queue.ts"
+    "purge:queue": "ts-node purge-queue.ts",
+    "fix:squares": "ts-node fix-squares.ts"
   },
   "dependencies": {
     "@solana/web3.js": "^1.95.2",
     "amqplib": "^0.10.9",
     "bs58": "^5.0.0",
     "dotenv": "^16.3.1",
+    "js-sha3": "^0.8.0",
     "mongodb": "^6.3.0",
     "winston": "^3.11.0"
   },
