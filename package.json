@@ -28,7 +28,12 @@
     "etl:transformer": "ts-node src/etl/run-transformer.ts",
     "etl:transformer:sample": "ts-node src/etl/run-transformer-sample.ts --limit 100",
     "query": "ts-node src/queries/sample-queries.ts",
-    "analytics": "ts-node src/analytics/examples.ts"
+    "analytics": "ts-node src/analytics/examples.ts",
+    "inspect:dlq": "ts-node inspect-dlq.ts",
+    "test:parse": "ts-node test-parse-transaction.ts",
+    "analyze:dlq": "ts-node analyze-dlq-signatures.ts",
+    "purge:dlq": "ts-node purge-dlq.ts",
+    "purge:queue": "ts-node purge-queue.ts"
   },
   "dependencies": {
     "@solana/web3.js": "^1.95.2",
