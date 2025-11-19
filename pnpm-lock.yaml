@@ -13,6 +13,9 @@ dependencies:
   dotenv:
     specifier: ^16.3.1
     version: 16.6.1
+  js-sha3:
+    specifier: ^0.8.0
+    version: 0.8.0
   mongodb:
     specifier: ^6.3.0
     version: 6.21.0
@@ -2398,6 +2401,10 @@ packages:
       - supports-color
       - ts-node
     dev: true
+
+  /js-sha3@0.8.0:
+    resolution: {integrity: sha512-gF1cRrHhIzNfToc802P800N8PpXS+evLLXfsVpowqmAFR9uwbi89WvXg2QspOmXL8QL86J4T1EpFu+yUkwJY3Q==}
+    dev: false
 
   /js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
