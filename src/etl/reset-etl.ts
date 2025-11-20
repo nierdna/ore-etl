@@ -6,6 +6,24 @@ import bs58 from 'bs58';
 
 const LAMPORTS_PER_SOL = 1_000_000_000;
 const GRAMS_PER_ORE = 100_000_000_000;
+const ORE_PROGRAM_ID = 'oreV3EG1i9BEgiAJ8b177Z2S2rMarzak4NMv1kULvWv';
+const LOG_INSTRUCTION_DISC = 8;
+
+interface ResetEvent {
+  disc: bigint;
+  roundId: bigint;
+  startSlot: bigint;
+  endSlot: bigint;
+  winningSquare: bigint;
+  topMiner: string;
+  numWinners: bigint;
+  motherlode: bigint;
+  totalDeployed: bigint;
+  totalVaulted: bigint;
+  totalWinnings: bigint;
+  totalMinted: bigint;
+  ts: bigint;
+}
 
 export class ResetETL {
   constructor(private readonly mongoManager: MongoManager) {}
@@ -133,7 +151,38 @@ export class ResetETL {
         return null;
       }
 
-      // Extract var value for winning square calculation
+      // PRIORITY 1: Try to extract ResetEvent from innerInstructions
+      const event = this.extractEventFromInnerInstructions(tx);
+
+      if (event) {
+        // Event-based parsing (accurate and complete)
+        logger.debug(`Using Event-based parsing for ${tx.signature}`);
+
+        const activity: ResetActivity = {
+          signature: tx.signature,
+          slot: tx.slot,
+          blockTime: tx.blockTime || 0,
+          roundId: Number(event.roundId),
+          startSlot: Number(event.startSlot),
+          endSlot: Number(event.endSlot),
+          winningSquare: Number(event.winningSquare),
+          topMiner: event.topMiner,
+          numWinners: Number(event.numWinners),
+          motherlode: Number(event.motherlode),
+          totalDeployed: Number(event.totalDeployed),
+          totalVaulted: Number(event.totalVaulted),
+          totalWinnings: Number(event.totalWinnings),
+          totalMinted: Number(event.totalMinted),
+          success,
+          createdAt: new Date(),
+        };
+
+        return activity;
+      }
+
+      // FALLBACK: Legacy log-based parsing (for old transactions)
+      logger.debug(`Using legacy parsing for ${tx.signature}`);
+
       const varValueLog = logs.find((l: string) => l.includes('var value:'));
       if (!varValueLog) {
         logger.warn(`No var value log found in Reset transaction ${tx.signature}`);
@@ -160,13 +209,11 @@ export class ResetETL {
       const postTokenBalances = tx.parsedData.meta.postTokenBalances || [];
 
       let totalMinted = 0;
-      let totalMintedAmount = 0;
       if (preTokenBalances.length > 0 && postTokenBalances.length > 0) {
         const preAmount = BigInt(preTokenBalances[0].uiTokenAmount.amount);
         const postAmount = BigInt(postTokenBalances[0].uiTokenAmount.amount);
         const mintedGrams = Number(postAmount - preAmount);
         totalMinted = mintedGrams;
-        totalMintedAmount = mintedGrams / GRAMS_PER_ORE;
       }
 
       // Extract treasury SOL balance change
@@ -174,28 +221,23 @@ export class ResetETL {
       const postBalances = tx.parsedData.meta.postBalances || [];
 
       let totalVaulted = 0;
-      let totalVaultedAmount = 0;
       for (let i = 0; i < preBalances.length; i++) {
         const change = postBalances[i] - preBalances[i];
         if (change > 100_000_000) {
           // > 0.1 SOL increase indicates treasury
           totalVaulted = change;
-          totalVaultedAmount = change / LAMPORTS_PER_SOL;
           break;
         }
       }
 
-      // Extract top miner if available (from logs or account keys)
-      // For now, use default empty string (would need account state lookup)
-      const topMiner = '0'.repeat(64); // Default placeholder
-
-      // Other fields with defaults or approximate values
-      const startSlot = tx.slot; // Approximate
-      const endSlot = tx.slot; // Approximate
-      const numWinners = 0; // Would need Round account state
-      const motherlode = 0; // Would need to check if motherlode was triggered
-      const totalDeployed = 0; // Would need Round account state
-      const totalWinnings = 0; // Would need Round account state
+      // Legacy: Missing data fields
+      const topMiner = '11111111111111111111111111111111'; // Default (System Program)
+      const startSlot = tx.slot;
+      const endSlot = tx.slot;
+      const numWinners = 0;
+      const motherlode = 0;
+      const totalDeployed = 0;
+      const totalWinnings = 0;
 
       const activity: ResetActivity = {
         signature: tx.signature,
@@ -285,6 +327,83 @@ export class ResetETL {
     const r4 = buf.readBigUInt64LE(24);
 
     return r1 ^ r2 ^ r3 ^ r4;
+  }
+
+  /**
+   * Extract ResetEvent from innerInstructions
+   * Returns null if event not found
+   */
+  private extractEventFromInnerInstructions(tx: RawTransaction): ResetEvent | null {
+    const innerInstructions = tx.parsedData?.meta?.innerInstructions || [];
+
+    for (const inner of innerInstructions) {
+      for (const ix of inner.instructions) {
+        // Check if this is an Ore Program call
+        if (ix.programId?.toString() !== ORE_PROGRAM_ID) {
+          continue;
+        }
+
+        // Check if instruction has data field (PartiallyDecodedInstruction)
+        if (!('data' in ix)) {
+          continue;
+        }
+
+        const dataBase58 = ix.data as string;
+        const buffer = Buffer.from(bs58.decode(dataBase58));
+
+        // Check if this is Log instruction (first byte = 8) and has enough data
+        if (buffer.length >= 129 && buffer.readUInt8(0) === LOG_INSTRUCTION_DISC) {
+          try {
+            return this.decodeResetEvent(buffer, 1);
+          } catch (error) {
+            logger.warn(`Failed to decode ResetEvent from innerInstruction: ${error}`);
+            continue;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Decode ResetEvent from buffer
+   */
+  private decodeResetEvent(buffer: Buffer, startOffset: number): ResetEvent {
+    let offset = startOffset;
+
+    const disc = buffer.readBigUInt64LE(offset); offset += 8;
+    const roundId = buffer.readBigUInt64LE(offset); offset += 8;
+    const startSlot = buffer.readBigUInt64LE(offset); offset += 8;
+    const endSlot = buffer.readBigUInt64LE(offset); offset += 8;
+    const winningSquare = buffer.readBigUInt64LE(offset); offset += 8;
+
+    const topMinerBytes = buffer.subarray(offset, offset + 32);
+    const topMiner = bs58.encode(topMinerBytes); offset += 32;
+
+    const numWinners = buffer.readBigUInt64LE(offset); offset += 8;
+    const motherlode = buffer.readBigUInt64LE(offset); offset += 8;
+    const totalDeployed = buffer.readBigUInt64LE(offset); offset += 8;
+    const totalVaulted = buffer.readBigUInt64LE(offset); offset += 8;
+    const totalWinnings = buffer.readBigUInt64LE(offset); offset += 8;
+    const totalMinted = buffer.readBigUInt64LE(offset); offset += 8;
+    const ts = buffer.readBigInt64LE(offset); offset += 8;
+
+    return {
+      disc,
+      roundId,
+      startSlot,
+      endSlot,
+      winningSquare,
+      topMiner,
+      numWinners,
+      motherlode,
+      totalDeployed,
+      totalVaulted,
+      totalWinnings,
+      totalMinted,
+      ts
+    };
   }
 }
 
