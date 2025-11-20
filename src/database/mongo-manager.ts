@@ -53,6 +53,10 @@ export class MongoManager {
     }
   }
 
+  public isConnectionActive(): boolean {
+    return this.isConnected;
+  }
+
   private async createIndexes(): Promise<void> {
     if (!this.targetDb) throw new Error('Target database not connected');
 

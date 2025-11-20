@@ -1,7 +1,10 @@
 import { MongoManager } from './database/mongo-manager';
-import { DeployETL } from './etl/deploy-etl';
-import { CheckpointETL } from './etl/checkpoint-etl';
+import { TransactionTransformer } from './etl/transaction-transformer';
+import { MongoTransactionSource } from './datasource/mongo';
+import { PostgresTransactionSource } from './datasource/postgres';
+import { config } from './config';
 import { logger } from './utils/logger';
+import { TransactionSource } from './datasource/interface';
 
 async function main() {
   const mongoManager = new MongoManager();
@@ -9,34 +12,34 @@ async function main() {
   try {
     await mongoManager.connect();
 
+    // Initialize Data Source based on config
+    let transactionSource: TransactionSource;
+    if (config.dataSource === 'postgres') {
+      logger.info('Using Postgres as transaction source');
+      transactionSource = new PostgresTransactionSource();
+    } else {
+      logger.info('Using Mongo as transaction source');
+      transactionSource = new MongoTransactionSource(mongoManager);
+    }
+
     const args = process.argv.slice(2);
-    const command = args[0] || 'all';
+    const command = args[0] || 'transform';
 
     switch (command) {
-      case 'deploy':
-        logger.info('Running Deploy ETL only');
-        const deployETL = new DeployETL(mongoManager);
-        await deployETL.run();
+      case 'transform':
+        logger.info(`Running Transaction Transformer (Continuous: ${config.etl.continuousMode})`);
+        const transformer = new TransactionTransformer(mongoManager, transactionSource);
+        await transformer.run();
+        break;
+      
+      case 'sample':
+        logger.info('Running Transaction Transformer Sample');
+        const sampleTransformer = new TransactionTransformer(mongoManager, transactionSource);
+        await sampleTransformer.runSample(100);
         break;
 
-      case 'checkpoint':
-        logger.info('Running Checkpoint ETL only');
-        const checkpointETL = new CheckpointETL(mongoManager);
-        await checkpointETL.run();
-        break;
-
-      case 'all':
       default:
-        logger.info('Running all ETL processes');
-        
-        // Run in sequence
-        const deployETLAll = new DeployETL(mongoManager);
-        await deployETLAll.run();
-
-        const checkpointETLAll = new CheckpointETL(mongoManager);
-        await checkpointETLAll.run();
-
-        logger.info('All ETL processes completed');
+        logger.info('Unknown command. Available: transform, sample');
         break;
     }
 
@@ -50,4 +53,3 @@ async function main() {
 }
 
 main();
-
