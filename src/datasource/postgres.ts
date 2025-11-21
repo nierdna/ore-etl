@@ -81,7 +81,7 @@ export class PostgresTransactionSource implements TransactionSource {
             _id: undefined as any, 
             signature,
             slot,
-            blockTime: 0, // Block time not available in current schema, defaulting to 0
+            blockTime: txData?.blockTime || 0, // Block time not available in current schema, defaulting to 0
             err: txData?.meta?.err || null,
             parsedData: txData, // Keeping the full structure as parsedData
             createdAt: new Date(), // Use current time as sync time
