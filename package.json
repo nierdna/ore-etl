@@ -35,7 +35,8 @@
     "purge:dlq": "ts-node purge-dlq.ts",
     "purge:queue": "ts-node purge-queue.ts",
     "fix:squares": "ts-node fix-squares.ts",
-    "ws:client": "node scripts/ws-client.js"
+    "ws:client": "node scripts/ws-client.js",
+    "activity:consumer": "node scripts/activity-consumer.js"
   },
   "dependencies": {
     "@solana/web3.js": "^1.95.2",
