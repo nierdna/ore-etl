@@ -10,6 +10,7 @@ import { DepositETL } from './deposit-etl';
 import { WithdrawETL } from './withdraw-etl';
 import { BuryETL } from './bury-etl';
 import { ResetETL } from './reset-etl';
+import { ActivityPublisher } from '../queue/activity-publisher';
 
 type ActivityCommon = {
   activityType: ActivityType;
@@ -86,9 +87,14 @@ const PARSERS: ParserEntry<any>[] = [
 
 export type ActivityParserOptions = {
   mongoManager?: MongoManager;
+  activityPublisher?: ActivityPublisher;
 };
 
-async function persistParsedActivities(mongoManager: MongoManager, activities: ParsedActivity[]): Promise<void> {
+async function persistParsedActivities(
+  mongoManager: MongoManager,
+  activities: ParsedActivity[],
+  activityPublisher?: ActivityPublisher
+): Promise<void> {
   if (activities.length === 0) {
     return;
   }
@@ -192,6 +198,21 @@ async function persistParsedActivities(mongoManager: MongoManager, activities: P
         resets.map(({ activityType, ...rest }) => rest)
       );
     }
+
+    // Publish to RabbitMQ after successful MongoDB save
+    if (activityPublisher) {
+      for (const activity of activities) {
+        await activityPublisher
+          .publishActivity(activity.activityType, activity)
+          .catch((err) => {
+            // Log but don't throw - don't block ETL flow
+            logger.error(
+              `Failed to publish activity ${activity.activityType} (${activity.signature}):`,
+              err
+            );
+          });
+      }
+    }
   } catch (error) {
     logger.error('Failed to persist parsed activities', error);
     throw error;
@@ -220,7 +241,11 @@ export async function parseRawTransaction(
   }
 
   if (results.length > 0 && options.mongoManager) {
-    await persistParsedActivities(options.mongoManager, results);
+    await persistParsedActivities(
+      options.mongoManager,
+      results,
+      options.activityPublisher
+    );
   }
 
   return results;

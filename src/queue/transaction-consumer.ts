@@ -4,6 +4,7 @@ import { parseRawTransaction } from '../etl/activity-parser';
 import { logger } from '../utils/logger';
 import { RawTransaction } from '../types/schemas';
 import { ObjectId } from 'mongodb';
+import { ActivityPublisher } from './activity-publisher';
 
 export interface ConsumerMetrics {
   processed: number;
@@ -26,7 +27,8 @@ export class TransactionConsumer {
     private readonly mongoManager: MongoManager,
     private readonly rabbitmqUrl: string,
     private readonly prefetchCount: number = 10,
-    private readonly maxRetries: number = 3
+    private readonly maxRetries: number = 3,
+    private readonly activityPublisher?: ActivityPublisher
   ) {
     this.metrics = {
       processed: 0,
@@ -120,6 +122,7 @@ export class TransactionConsumer {
       // Parse and save using existing activity parser
       const activities = await parseRawTransaction(tx, {
         mongoManager: this.mongoManager,
+        activityPublisher: this.activityPublisher,
       });
 
       // Acknowledge message (success)

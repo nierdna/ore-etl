@@ -59,6 +59,12 @@ MONGODB_URI=mongodb://user:password@host:port
 SOURCE_DATABASE=ore
 TARGET_DATABASE=ore_transformed
 
+# RabbitMQ Configuration (for realtime processing)
+RABBITMQ_URL=amqp://user:password@host:port
+CONSUMER_PREFETCH=10
+CONSUMER_MAX_RETRIES=3
+ENABLE_ACTIVITY_EVENTS=true  # Enable publishing activity events to RabbitMQ
+
 # ETL Configuration
 BATCH_SIZE=1000
 LOG_LEVEL=info
